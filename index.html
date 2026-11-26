@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f5f5a">
+<title>Mis Finanzas</title>
+<style>
+:root{--bg:#eef3f2;--card:#fff;--ink:#12302d;--mut:#5d7471;--ac:#0f5f5a;--on:#fff;--ln:#d3e0de;--bad:#b4442f;--ok:#1d7a4a;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1b1a;--card:#142927;--ink:#e3f0ee;--mut:#8fa9a5;--ac:#4fc3b8;--on:#08201e;--ln:#26443f;--bad:#f08a72;--ok:#6fd49b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 "Avenir Next","Segoe UI",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 0}
+main,#login{max-width:560px;margin:0 auto;padding:16px 16px 110px}
+#login{padding-top:12vh}
+h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.05rem;margin:22px 0 8px}
+p,.mut{color:var(--mut);margin:4px 0}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px}
+button,input,select{font:inherit;color:inherit}
+input,select{width:100%;padding:11px;border:1px solid var(--ln);border-radius:10px;background:var(--bg);margin:4px 0 10px}
+.btn{background:var(--ac);color:var(--on);border:0;border-radius:10px;padding:12px 16px;font-weight:600;width:100%;margin:6px 0}
+.btn.s{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+.wk{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.wk b{flex:1;text-align:center;font-size:1.05rem}
+.wk button{background:var(--card);border:1px solid var(--ln);border-radius:10px;width:44px;height:44px;font-size:1.2rem}
+.big{font-size:2.3rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.kp div{font-size:.8rem;color:var(--mut)}.kp b{display:block;font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.g{margin:12px 0}.gh{display:flex;justify-content:space-between;gap:8px;font-size:.9rem;flex-wrap:wrap}
+.tr{position:relative;height:14px;background:var(--bg);border-radius:7px;margin-top:6px}
+.tr i{display:block;height:100%;border-radius:7px;background:var(--ok)}.tr i.bad{background:var(--bad)}
+.tr u{position:absolute;top:-4px;bottom:-4px;width:3px;background:var(--ink);border-radius:2px}
+.st{font-size:.8rem}.st.bad{color:var(--bad)}.st.ok{color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}
+th,td{padding:7px 4px;border-bottom:1px solid var(--ln);text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--mut);font-weight:600}
+.mv{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--ln)}
+.mv div{flex:1;min-width:0}.mv small{display:block;color:var(--mut)}
+.mv .x{background:none;border:0;color:var(--mut);font-size:1.2rem;padding:6px}
+.pos{color:var(--ok)}.neg{color:var(--bad)}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--ln);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:none;border:0;padding:10px 4px;color:var(--mut);font-weight:600}
+nav button.on{color:var(--ac)}nav .plus{background:var(--ac);color:var(--on);border-radius:12px;font-size:1.3rem;max-width:64px}
+dialog{border:1px solid var(--ln);border-radius:16px;background:var(--card);color:var(--ink);width:min(92vw,460px);padding:18px}
+dialog::backdrop{background:#0008}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{font-size:.85rem;color:var(--mut)}
+[hidden]{display:none!important}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head><body>
+
+<div id="login" hidden>
+  <h1>Mis Finanzas</h1>
+  <p>Entra para ver tus semanas, tu presupuesto y tu ahorro.</p>
+  <button class="btn" data-a="google">Entrar con Google</button>
+  <h2>O con correo y contraseña</h2>
+  <input id="em" type="email" placeholder="Correo" autocomplete="username">
+  <input id="pw" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <button class="btn s" data-a="login">Entrar</button>
+  <button class="btn s" data-a="signup">Crear cuenta (te enviamos un correo para verificar)</button>
+  <p id="msg" role="status"></p>
+</div>
+
+<main id="app" hidden></main>
+<nav id="nav" hidden>
+  <button data-a="tab" data-v="s" class="on">Semana</button>
+  <button data-a="add" class="plus" aria-label="Agregar movimiento">+</button>
+  <button data-a="tab" data-v="y">Año</button>
+  <button data-a="tab" data-v="m">Más</button>
+</nav>
+
+<dialog id="dlg">
+  <h2 style="margin-top:0">Nuevo movimiento</h2>
+  <div class="row"><div><label>Fecha</label><input id="f_f" type="date"></div>
+  <div><label>Tipo</label><select id="f_t"><option>Egreso</option><option>Ingreso</option></select></div></div>
+  <label>Categoría</label><select id="f_c"></select>
+  <label>Concepto</label><input id="f_k" list="lk"><datalist id="lk"></datalist>
+  <label>Detalle (opcional)</label><input id="f_d">
+  <div class="row"><div><label>Presupuesto</label><input id="f_p" type="number" inputmode="decimal" step="0.01"></div>
+  <div><label>Monto real</label><input id="f_m" type="number" inputmode="decimal" step="0.01"></div></div>
+  <button class="btn" id="sv">Guardar</button>
+  <button class="btn s" id="cx">Cancelar</button>
+</dialog>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendEmailVerification,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,onSnapshot,doc,setDoc,deleteDoc,writeBatch} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app=initializeApp({
+  apiKey:"AIzaSyBnTSQIusK4GQizj5Y0Y0dKMoCxpNo-5I4",
+  authDomain:"finanzas-personales-fce7f.firebaseapp.com",
+  projectId:"finanzas-personales-fce7f",
+  storageBucket:"finanzas-personales-fce7f.firebasestorage.app",
+  messagingSenderId:"120179787191",
+  appId:"1:120179787191:web:69556944b4682086845432"});
+const auth=getAuth(app),db=getFirestore(app);
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const pd=s=>{const[a,b,c]=s.split('-');return new Date(+a,b-1,+c)};
+const lun=d=>{const x=new Date(d);x.setDate(x.getDate()-(x.getDay()+6)%7);return x};
+const sum=(a,f)=>a.reduce((t,i)=>t+(f?f(i):i.m),0);
+const fmt=n=>'S/ '+n.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fd=d=>d.toLocaleDateString('es-PE',{day:'numeric',month:'short'});
+const MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+
+const CAT={Ingreso:['Sueldo','Emprendimiento','Ingreso Alquiler','Otros'],Egreso:['Gastos Fijos','Deudas','Gastos Variables','Ahorro']};
+const CON={
+ 'Gastos Fijos':['Renta','Servicio Agua','Servicio Luz','Seguro Salud','Seguro Vehicular','Alimentación','Internet','Celular','Servicios Streaming','Spotify','Otros Fijos','EPS','Pensión Escolar/Universitaria'],
+ 'Gastos Variables':['Restaurantes','Entretenimiento','Gastos Médicos','Cuidado Personal','Hogar','Ropa','Educación','Mascotas','Regalos','Gasolina','Otros Variables'],
+ 'Deudas':['Deuda Bancaria','Tarjetas de Crédito','Deuda Terceros','Otras Deudas'],
+ 'Ahorro':['Ahorro'],
+ 'Sueldo':['Sueldo semanal','Sueldo quincenal','Sueldo mensual','Bonos'],
+ 'Emprendimiento':['Ingresos Emprendimiento'],'Ingreso Alquiler':['Renta Alquiler'],'Otros':['Otros']};
+// 50/30/20: Fijos → Necesidades; Variables → Deseos salvo estos; Ahorro y Deudas → Ahorro
+const DES=['Restaurantes','Entretenimiento','Cuidado Personal','Ropa','Regalos'];
+const G=i=>i.t!=='Egreso'?null:i.c==='Gastos Fijos'?'N':(i.c==='Ahorro'||i.c==='Deudas')?'A':(DES.includes(i.k)?'D':'N');
+const GN={N:'Necesidades',D:'Deseos',A:'Ahorro y deudas'};
+let P={N:50,D:30,A:20};
+try{P=JSON.parse(localStorage.getItem('pct'))||P}catch{}
+
+const S={uid:null,items:[],ref:new Date(),y:new Date().getFullYear(),tab:'s'};
+let unsub=null;
+
+function vSemana(){
+  const a=lun(S.ref),b=new Date(a);b.setDate(a.getDate()+6);
+  const A=iso(a),B=iso(b);
+  const w=S.items.filter(i=>i.f>=A&&i.f<=B).sort((x,y)=>x.f<y.f?1:x.f>y.f?-1:0);
+  const ing=sum(w.filter(i=>i.t==='Ingreso')),eg=sum(w.filter(i=>i.t==='Egreso')),ah=sum(w.filter(i=>i.c==='Ahorro'));
+  const saldo=ing-eg;
+  const grp=['N','D','A'].map(g=>{
+    const r=sum(w.filter(i=>G(i)===g)),p=ing?r/ing*100:0,bad=g==='A'?p<P[g]:p>P[g];
+    const st=!ing?'':bad?(g==='A'?'por debajo de la meta':'sobre la meta'):'dentro de la meta';
+    return `<div class="g"><div class="gh"><b>${GN[g]}</b><span>${fmt(r)} · ${ing?p.toFixed(0)+'%':'—'} (meta ${P[g]}%)</span></div>
+    <div class="tr"><i class="${ing&&bad?'bad':''}" style="width:${Math.min(100,p)}%"></i><u style="left:calc(${P[g]}% - 1px)"></u></div>
+    <span class="st ${bad?'bad':'ok'}">${st}</span></div>`}).join('');
+  const cats=CAT.Egreso.map(c=>{const x=w.filter(i=>i.c===c&&i.t==='Egreso'),pp=sum(x,i=>i.p||0),r=sum(x);
+    return `<tr><td>${c}</td><td>${fmt(pp)}</td><td>${fmt(r)}</td><td>${pp?Math.round(r/pp*100)+'%':'—'}</td></tr>`}).join('');
+  const list=w.length?w.map(i=>`<div class="mv"><div>${esc(i.k||i.c)}<small>${fd(pd(i.f))} · ${esc(i.c)}${i.d?' · '+esc(i.d):''}</small></div>
+    <b class="${i.t==='Ingreso'?'pos':'neg'}">${i.t==='Ingreso'?'+':'−'}${fmt(i.m)}</b><button class="x" data-a="del" data-id="${i.id}" aria-label="Eliminar">✕</button></div>`).join(''):'<p>Sin movimientos esta semana.</p>';
+  return `<div class="wk"><button data-a="prev" aria-label="Semana anterior">‹</button><b>${fd(a)} – ${fd(b)}</b><button data-a="next" aria-label="Semana siguiente">›</button></div>
+  <div class="card"><div class="mut">Saldo de la semana</div><div class="big ${saldo<0?'neg':''}">${fmt(saldo)}</div>
+  <div class="kp"><div>Ingresos<b>${fmt(ing)}</b></div><div>Egresos<b>${fmt(eg)}</b></div><div>Ahorrado<b>${fmt(ah)}</b></div></div></div>
+  <h2>Regla 50/30/20 de la semana</h2><div class="card">${grp}</div>
+  <h2>Presupuesto vs. real</h2><div class="card"><table><tr><th>Categoría</th><th>Ppto.</th><th>Real</th><th>Uso</th></tr>${cats}</table></div>
+  <h2>Movimientos</h2><div class="card">${list}</div>
+  <button class="btn s" data-a="hoy" style="margin-top:14px">Ir a la semana de hoy</button>`;
+}
+
+function vAnio(){
+  let TI=0,TE=0,TA=0;
+  const rows=MES.map((n,m)=>{
+    const p=S.y+'-'+String(m+1).padStart(2,'0'),x=S.items.filter(i=>i.f.startsWith(p));
+    const i=sum(x.filter(z=>z.t==='Ingreso')),e=sum(x.filter(z=>z.t==='Egreso')),a=sum(x.filter(z=>z.c==='Ahorro'));
+    TI+=i;TE+=e;TA+=a;
+    return `<tr><td>${n.slice(0,3)}</td><td>${fmt(i)}</td><td>${fmt(e)}</td><td>${fmt(a)}</td><td class="${i-e<0?'neg':''}">${fmt(i-e)}</td></tr>`}).join('');
+  return `<div class="wk"><button data-a="yp" aria-label="Año anterior">‹</button><b>${S.y}</b><button data-a="yn" aria-label="Año siguiente">›</button></div>
+  <div class="card"><div class="mut">Saldo del año</div><div class="big ${TI-TE<0?'neg':''}">${fmt(TI-TE)}</div>
+  <div class="kp"><div>Ingresos<b>${fmt(TI)}</b></div><div>Egresos<b>${fmt(TE)}</b></div><div>Ahorrado<b>${fmt(TA)}</b></div></div></div>
+  <h2>Mes a mes</h2><div class="card" style="overflow-x:auto"><table><tr><th>Mes</th><th>Ingr.</th><th>Egr.</th><th>Ahorro</th><th>Saldo</th></tr>${rows}</table></div>
+  <p>Los egresos incluyen el ahorro, igual que en tu plantilla de Excel.</p>`;
+}
+
+function vMas(){
+  return `<h1>Más</h1><p>${S.items.length} movimientos guardados en la nube.</p>
+  <h2>Excel</h2><div class="card"><label>Importar tu plantilla (.xlsx o .xlsm, hoja «Datos»)</label>
+  <input id="file" type="file" accept=".xlsx,.xlsm,.xls,.csv"><button class="btn" data-a="exp">Exportar todo a Excel</button></div>
+  <h2>Regla de presupuesto (%)</h2><div class="card"><div class="row"><div><label>Necesidades</label><input id="pN" type="number" value="${P.N}"></div>
+  <div><label>Deseos</label><input id="pD" type="number" value="${P.D}"></div></div><label>Ahorro y deudas</label><input id="pA" type="number" value="${P.A}">
+  <button class="btn s" data-a="pct">Guardar porcentajes</button></div>
+  <h2>Cómo se clasifica</h2><p>Gastos fijos = necesidades. Gastos variables = deseos, salvo gastos médicos, hogar, educación, mascotas, gasolina y otros variables (necesidades). Ahorro y deudas = ahorro.</p>
+  <button class="btn s" data-a="out" style="margin-top:18px">Cerrar sesión</button>`;
+}
+
+function render(){
+  $('#app').innerHTML=S.tab==='s'?vSemana():S.tab==='y'?vAnio():vMas();
+  document.querySelectorAll('nav [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===S.tab));
+  const f=$('#file');if(f)f.onchange=()=>importar(f.files[0]);
+}
+
+function fillCats(){
+  const t=$('#f_t').value;$('#f_c').innerHTML=CAT[t].map(c=>`<option>${c}</option>`).join('');fillCon();
+}
+function fillCon(){$('#lk').innerHTML=(CON[$('#f_c').value]||[]).map(c=>`<option value="${c}">`).join('')}
+$('#f_t').onchange=fillCats;$('#f_c').onchange=fillCon;
+$('#cx').onclick=()=>$('#dlg').close();
+$('#sv').onclick=async()=>{
+  const m=+$('#f_m').value,pv=$('#f_p').value;
+  const o={f:$('#f_f').value,t:$('#f_t').value,c:$('#f_c').value,k:$('#f_k').value.trim(),d:$('#f_d').value.trim(),p:pv===''?m:+pv,m};
+  if(!o.f||!(m>0))return alert('Falta la fecha o el monto.');
+  try{await setDoc(doc(collection(db,'users',S.uid,'movs')),o);$('#dlg').close()}catch(e){alert('No se pudo guardar: '+e.message)}
+};
+
+const hsh=s=>{let a=5381;for(const c of s)a=((a*33)^c.charCodeAt(0))>>>0;return a.toString(36)};
+function parseFecha(v){
+  if(typeof v==='number')return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
+  const s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  const m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:null;
+}
+async function importar(file){
+  if(!file)return;
+  try{
+    const wb=XLSX.read(await file.arrayBuffer());
+    const ws=wb.Sheets['Datos']||wb.Sheets[wb.SheetNames[0]];
+    const seen={},out=[];
+    for(const raw of XLSX.utils.sheet_to_json(ws,{defval:''})){
+      const r={};for(const[k,v]of Object.entries(raw))r[k.trim().toLowerCase()]=v;
+      const f=parseFecha(r.fecha),m=parseFloat(r.monto);
+      if(!f||!(m>0)||!r.tipo)continue;
+      const o={f,t:/^ing/i.test(r.tipo)?'Ingreso':'Egreso',c:String(r.categoria||'').trim(),k:String(r.concepto||'').trim(),d:String(r.detalle||'').trim(),p:parseFloat(r.presupuesto)||0,m};
+      const h=hsh([o.f,o.t,o.c,o.k,o.d,o.m].join('|'));seen[h]=(seen[h]||0)+1;
+      out.push(['x'+h+'_'+seen[h],o]);
+    }
+    if(!out.length)return alert('No encontré filas válidas. Revisa que la hoja «Datos» tenga Fecha, Tipo, Categoria, Concepto, Detalle, Presupuesto y Monto.');
+    if(!confirm(`Se importarán ${out.length} movimientos. Si ya los importaste antes, no se duplican. ¿Continuar?`))return;
+    for(let i=0;i<out.length;i+=400){
+      const b=writeBatch(db);out.slice(i,i+400).forEach(([id,o])=>b.set(doc(db,'users',S.uid,'movs',id),o));await b.commit();
+    }
+    alert('Listo: '+out.length+' movimientos importados.');
+  }catch(e){alert('Error al importar: '+e.message)}
+}
+function exportar(){
+  const rows=[...S.items].sort((a,b)=>a.f<b.f?-1:1).map(i=>{const d=pd(i.f);
+    return{'Fecha':i.f,'Mes':MES[d.getMonth()],'Año':String(d.getFullYear()),'Tipo':i.t,'Categoria':i.c,'Concepto':i.k,'Detalle':i.d,'Presupuesto':i.p,'Monto':i.m}});
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Datos');
+  XLSX.writeFile(wb,'Finanzas.xlsx');
+}
+
+const msg=t=>$('#msg').textContent=t;
+const acts={
+  tab:t=>{S.tab=t.dataset.v;render()},
+  prev:()=>{S.ref.setDate(S.ref.getDate()-7);render()},
+  next:()=>{S.ref.setDate(S.ref.getDate()+7);render()},
+  hoy:()=>{S.ref=new Date();render()},
+  yp:()=>{S.y--;render()},yn:()=>{S.y++;render()},
+  add:()=>{$('#f_f').value=iso(new Date());$('#f_t').value='Egreso';fillCats();['f_k','f_d','f_p','f_m'].forEach(i=>$('#'+i).value='');$('#dlg').showModal()},
+  del:async t=>{if(confirm('¿Eliminar este movimiento?'))try{await deleteDoc(doc(db,'users',S.uid,'movs',t.dataset.id))}catch(e){alert(e.message)}},
+  exp:exportar,out:()=>signOut(auth),
+  pct:()=>{const n={N:+$('#pN').value,D:+$('#pD').value,A:+$('#pA').value};
+    if(n.N+n.D+n.A!==100)return alert('Los tres porcentajes deben sumar 100.');
+    P=n;try{localStorage.setItem('pct',JSON.stringify(P))}catch{}alert('Guardado.')},
+  google:()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>msg('No se pudo entrar con Google: '+e.code)),
+  login:async()=>{try{const c=await signInWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value);
+    if(!c.user.emailVerified){await sendEmailVerification(c.user);await signOut(auth);msg('Tu correo no está verificado. Te reenviamos el enlace; ábrelo y vuelve a entrar.')}}
+    catch{msg('No se pudo entrar: revisa tu correo y contraseña.')}},
+  signup:async()=>{try{const c=await createUserWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value);
+    await sendEmailVerification(c.user);await signOut(auth);msg('Cuenta creada. Abre el enlace que te enviamos por correo y luego entra.')}
+    catch(e){msg('No se pudo crear la cuenta: '+(e.code||e.message))}}
+};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t&&acts[t.dataset.a])acts[t.dataset.a](t)});
+
+onAuthStateChanged(auth,u=>{
+  if(unsub){unsub();unsub=null}
+  if(u&&u.emailVerified){
+    S.uid=u.uid;$('#login').hidden=true;$('#app').hidden=false;$('#nav').hidden=false;
+    unsub=onSnapshot(collection(db,'users',u.uid,'movs'),
+      s=>{S.items=s.docs.map(d=>({id:d.id,...d.data()}));render()},
+      e=>{$('#app').innerHTML='<h1>Sin acceso</h1><p>Esta cuenta no tiene permiso para ver estos datos ('+esc(e.code)+').</p><button class="btn s" data-a="out">Cerrar sesión</button>'});
+  }else{S.uid=null;S.items=[];$('#login').hidden=false;$('#app').hidden=true;$('#nav').hidden=true}
+});
+</script>
+</body></html>
