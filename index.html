@@ -74,7 +74,8 @@ const DESK=['Restaurantes','Entretenimiento','Cuidado Personal','Ropa','Regalos'
 const CAT2={'Gastos Fijos':'Gastos fijos','Deudas':'Deudas','Ahorro':'Ahorros'};
 const fromDb=(id,d)=>{const k=d.k||'';let c,co;
 if(d.t=='Ingreso'){c='Ingresos';co=(d.c=='Otros'&&k&&k!='Otros')?k:d.c=='Ingreso Alquiler'?'Alquiler':(d.c||k)}
-else{c=d.c=='Gastos Variables'?(S.cfg.it.var.some(x=>x.n==k)?'Gastos variables':(S.cfg.it.deseos.some(x=>x.n==k)||DESK.includes(k))?'Deseos':'Gastos variables'):(CAT2[d.c]||'Gastos variables');co=k||d.c}
+else{c=d.c=='Gastos Variables'?(S.cfg.it.var.some(x=>norm(x.n)==norm(k))?'Gastos variables':(S.cfg.it.deseos.some(x=>norm(x.n)==norm(k))||DESK.includes(k))?'Deseos':'Gastos variables'):(CAT2[d.c]||'Gastos variables');co=k||d.c}
+const cu=CU.find(x=>x.n==c),ln=cu?S.cfg.it[cu.k].map(x=>x.n):S.cfg.ing,hit=ln.find(n=>norm(n)==norm(co));co=hit||String(co).trim();
 return{id,fecha:d.f,tipo:d.t,categoria:c,concepto:co,detalle:d.d||'',presupuesto:+d.p||0,monto:+d.m||0,o:d}};
 const toDb=(f,t,cat,con,det,p,m)=>{let c;if(t=='Ingreso')c=con=='Alquiler'?'Ingreso Alquiler':['Sueldo','Emprendimiento'].includes(con)?con:'Otros';
 else c={'Gastos fijos':'Gastos Fijos','Deudas':'Deudas','Gastos variables':'Gastos Variables','Deseos':'Gastos Variables','Ahorros':'Ahorro'}[cat]||'Gastos Variables';
@@ -178,9 +179,9 @@ const t=iso(new Date());col().add(toDb(t>=a&&t<=b?t:a,'Egreso',c.n,x.n,'',x.m,+m
 function nuevo(){const[a,b]=rng(),t=iso(new Date());g('f').value=t>=a&&t<=b?t:a;g('ca').innerHTML='<option>Ingresos</option>'+CU.map(c=>`<option>${c.n}</option>`).join('');g('ca').value='Gastos variables';g('dt').value=g('mo').value='';dl();g('dg').showModal()}
 function dl(){const c=CU.find(x=>x.n==g('ca').value),l=c?S.cfg.it[c.k].map(x=>x.n):S.cfg.ing;g('cs').innerHTML=l.map(n=>`<option>${n}</option>`).join('')+'<option value="__n">＋ Otro concepto…</option>';cn()}
 function cn(){const n=g('cs').value=='__n';g('co').hidden=!n;if(n){g('co').value='';g('co').focus()}}
-function save(){const f=g('f').value,m=+g('mo').value,n=g('ca').value,c=CU.find(x=>x.n==n),nw=g('cs').value=='__n',co=(nw?g('co').value:g('cs').value).trim();
+function save(){const f=g('f').value,m=+g('mo').value,n=g('ca').value,c=CU.find(x=>x.n==n),nw=g('cs').value=='__n';let co=(nw?g('co').value:g('cs').value).trim();
 if(!f||!m||!co)return alert('Completa fecha, concepto y monto.');
-const l=c?S.cfg.it[c.k]:null,it=l&&l.find(x=>x.n==co);
+const l=c?S.cfg.it[c.k]:null,it=l&&l.find(x=>norm(x.n)==norm(co));if(it)co=it.n;
 if(nw){if(c&&!c.f&&!it){l.push({n:co,p:0});saveCfg()}if(!c&&!S.cfg.ing.includes(co)){S.cfg.ing.push(co);saveCfg()}}
 col().add(toDb(f,c?'Egreso':'Ingreso',n,co,g('dt').value,it?(it.p??it.m??0):0,m));g('dg').close()}
 
