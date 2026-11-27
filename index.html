@@ -33,7 +33,7 @@ dialog{border:0;border-radius:16px;padding:18px;width:min(380px,94vw)}dialog lab
 <dialog id="dg"><h3 style="margin:0">Nuevo movimiento</h3>
 <label>Fecha</label><input type="date" id="f">
 <label>Categoría</label><select id="ca" onchange="dl()"></select>
-<label>Concepto</label><input id="co" list="cl"><datalist id="cl"></datalist>
+<label>Concepto</label><select id="cs" onchange="cn()"></select><input id="co" placeholder="Nuevo concepto" autocomplete="off" hidden style="margin-top:6px">
 <label>Detalle (opcional)</label><input id="dt">
 <label>Monto real</label><input id="mo" type="number" step="0.01" inputmode="decimal">
 <div style="margin-top:12px;display:flex;gap:8px"><button class="p" onclick="save()">Guardar</button><button onclick="dg.close()">Cancelar</button></div></dialog>
@@ -74,7 +74,7 @@ const DESK=['Restaurantes','Entretenimiento','Cuidado Personal','Ropa','Regalos'
 const CAT2={'Gastos Fijos':'Gastos fijos','Deudas':'Deudas','Ahorro':'Ahorros'};
 const fromDb=(id,d)=>{const k=d.k||'';let c,co;
 if(d.t=='Ingreso'){c='Ingresos';co=(d.c=='Otros'&&k&&k!='Otros')?k:d.c=='Ingreso Alquiler'?'Alquiler':(d.c||k)}
-else{c=d.c=='Gastos Variables'?(DESK.includes(k)?'Deseos':'Gastos variables'):(CAT2[d.c]||'Gastos variables');co=k||d.c}
+else{c=d.c=='Gastos Variables'?(S.cfg.it.var.some(x=>x.n==k)?'Gastos variables':(S.cfg.it.deseos.some(x=>x.n==k)||DESK.includes(k))?'Deseos':'Gastos variables'):(CAT2[d.c]||'Gastos variables');co=k||d.c}
 return{id,fecha:d.f,tipo:d.t,categoria:c,concepto:co,detalle:d.d||'',presupuesto:+d.p||0,monto:+d.m||0,o:d}};
 const toDb=(f,t,cat,con,det,p,m)=>{let c;if(t=='Ingreso')c=con=='Alquiler'?'Ingreso Alquiler':['Sueldo','Emprendimiento'].includes(con)?con:'Otros';
 else c={'Gastos fijos':'Gastos Fijos','Deudas':'Deudas','Gastos variables':'Gastos Variables','Deseos':'Gastos Variables','Ahorros':'Ahorro'}[cat]||'Gastos Variables';
@@ -86,7 +86,7 @@ const aerr=e=>g('ae').textContent=e.message;
 function login(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>{if(e.code=='auth/popup-blocked'||e.code=='auth/operation-not-supported-in-this-environment')auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());else aerr(e)})}
 auth.onAuthStateChanged(u0=>{const u=u0&&u0.emailVerified?u0:null;S.u=u;UN.forEach(f=>f());UN=[];g('auth').style.display=u?'none':'grid';g('app').style.display=u?'block':'none';if(!u)return;
 UN.push(cref().onSnapshot(s=>{if(s.exists){const c=s.data();S.cfg={...DEF,...c,pct:{...DEF.pct,...c.pct},it:{...DEF.it,...c.it}}}else saveCfg();render()},()=>render()));
-UN.push(col().onSnapshot(s=>{S.mov=s.docs.map(d=>fromDb(d.id,d.data())).filter(x=>x.fecha&&x.monto);render()}))});
+UN.push(col().onSnapshot(s=>{S.raw=s.docs.map(d=>({id:d.id,...d.data()}));render()}))});
 
 async function emailIn(){try{const c=await auth.signInWithEmailAndPassword(g('em').value.trim(),g('pw').value);if(!c.user.emailVerified){await c.user.sendEmailVerification();await auth.signOut();aerr({message:'Tu correo no está verificado. Te reenviamos el enlace.'})}}catch(e){aerr({message:'No se pudo entrar: revisa correo y contraseña.'})}}
 async function emailUp(){try{const c=await auth.createUserWithEmailAndPassword(g('em').value.trim(),g('pw').value);await c.user.sendEmailVerification();await auth.signOut();aerr({message:'Cuenta creada. Abre el enlace del correo y luego entra.'})}catch(e){aerr({message:e.code||e.message})}}
@@ -97,10 +97,19 @@ if(S.v=='m'){const m=S.cfg.dm;let a=new Date(d.getFullYear(),d.getMonth(),m);if(
 return[d.getFullYear()+'-01-01',d.getFullYear()+'-12-31']}
 function shift(n){const[a]=rng(),d=pd(a);S.r=null;S.ref=S.v=='s'?iso(add(d,7*n)):S.v=='m'?iso(new Date(d.getFullYear(),d.getMonth()+n,S.cfg.dm)):(d.getFullYear()+n)+'-06-01';render()}
 function occ(x,a,b){if(!x.on)return 0;if(x.fr=='s')return Math.max(1,Math.round(days(a,b)/7));let c=0;
-for(let d=pd(a);d<=pd(b);d=add(d,1))if(d.getDate()==Math.min(x.d,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()))c++;return c}
+for(let d=pd(a);d<=pd(b);d=add(d,1)){const dm=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(),t=d.getDate(),d1=x.fr=='q'?Math.min(x.d,15):x.d;if(t==Math.min(d1,dm)||(x.fr=='q'&&t==Math.min(d1+15,dm)))c++}return c}
 
+Chart.register({id:'lb',afterDatasetsDraw(ch,_a,o){if(!o)return;const x=ch.ctx;
+if(o.center){const e=ch.getDatasetMeta(0).data[0];x.save();x.font='bold 26px system-ui';x.fillStyle='#4a4036';x.textAlign='center';x.textBaseline='bottom';x.fillText(o.center,e.x,e.y-6);x.restore()}
+if(!o.on)return;const t=ch.config.type,hz=ch.options.indexAxis=='y';
+ch.data.datasets.forEach((ds,di)=>{const tot=ds.data.reduce((s,v)=>s+(+v||0),0);ch.getDatasetMeta(di).data.forEach((e,i)=>{const v=+ds.data[i];if(!v)return;
+let L=[$(v)],px,py,al='center',bl='middle';
+if(t=='doughnut'){const p=Math.round(v/tot*100);if(p<4)return;L=[p+'%',$(v)];const q=e.tooltipPosition();px=q.x;py=q.y}
+else if(hz){px=e.x+4;py=e.y;al='left'}else{px=e.x;py=e.y-3;bl='bottom'}
+x.save();x.fillStyle='#4a4036';x.textAlign=al;x.textBaseline=bl;
+L.forEach((s,k)=>{x.font=(k?'11px':'bold 12px')+' system-ui';x.fillText(s,px,py+(k-(L.length-1)/2)*13)});x.restore()})})}});
 /* ---------- Render ---------- */
-function render(){if(!S.u)return;
+function render(){if(!S.u)return;S.mov=(S.raw||[]).map(d=>fromDb(d.id,d)).filter(x=>x.fecha&&x.monto);
 const[a,b]=rng(),W=days(a,b)/7,M=S.mov.filter(x=>x.fecha>=a&&x.fecha<=b);
 const ing=M.filter(x=>x.tipo=='Ingreso'),eg=M.filter(x=>x.tipo=='Egreso');
 const T=l=>l.reduce((s,x)=>s+x.monto,0),I=T(ing),E=T(eg);
@@ -112,7 +121,7 @@ const inames=[...new Set([...S.cfg.ing,...Object.keys(ti)])];
 const lab=S.r?'Personalizado':S.v=='s'?'Semana':S.v=='m'?MES[add(pd(a),15).getMonth()]:'Año '+a.slice(0,4);
 const blk=c=>{const it=S.cfg.it[c.k],nm=it.map(x=>x.n),ex=[...new Set(eg.filter(x=>x.categoria==c.n&&!nm.includes(x.concepto)).map(x=>x.concepto))];let rows='',sp=0,sa=0;
 if(c.f){it.forEach((x,i)=>{const o=occ(x,a,b);if(!o)return;const pr=o*x.m,pg=cc[c.n+'|'+x.n]||0;sp+=pr;sa+=pg;
-rows+=`<tr><td>${x.n}</td><td class=r>${$(pr)}</td><td>${x.fr=='s'?'Semanal':'Día '+x.d}</td><td>${pg>=pr&&pg>0?'✔ Pagado':`<button onclick="pay('${c.k}',${i})">Pagar</button>`}${pg&&pg<pr?' ('+$(pg)+')':''}</td></tr>`});
+rows+=`<tr><td>${x.n}</td><td class=r>${$(pr)}</td><td>${x.fr=='s'?'Semanal':x.fr=='q'?'Días '+Math.min(x.d,15)+' y '+(Math.min(x.d,15)+15):'Día '+x.d}</td><td>${pg>=pr&&pg>0?'✔ Pagado':`<button onclick="pay('${c.k}',${i})">Pagar</button>`}${pg&&pg<pr?' ('+$(pg)+')':''}</td></tr>`});
 ex.forEach(n=>{sa+=cc[c.n+'|'+n];rows+=`<tr><td>${n}</td><td class=r>—</td><td></td><td>${$(cc[c.n+'|'+n])}</td></tr>`});
 return`<div class=c><div class=hd style="background:var(--${c.k})">${c.n}</div><table><tr><th>Concepto</th><th class=r>Monto</th><th>Vence</th><th>Estado</th></tr>${rows}<tr><td><b>Total</b></td><td class=r><b>${$(sp)}</b></td><td></td><td><b>${$(sa)}</b></td></tr></table></div>`}
 const all=[...it.map(x=>[x.n,x.p*W]),...ex.map(n=>[n,0])];
@@ -122,8 +131,11 @@ return`<div class=c><div class=hd style="background:var(--${c.k})">${c.n}</div><
 const pcs=['N','D','A'].map(t=>{const pr=I*S.cfg.pct[t]/100,u=tp[t];return`<div class=pc style="background:var(--${t})"><div>${TT[t]} <input type=number value="${S.cfg.pct[t]}" onchange="setPct('${t}',this.value)">%</div><b>${$(pr)}</b><div>Gastado: ${$(u)} ${u>pr&&pr>0?'<span class=bad>(excedido)</span>':''}</div><div class=bp><i style="width:${pr?Math.min(100,u/pr*100):0}%"></i></div></div>`}).join('');
 const ps=S.cfg.pct.N+S.cfg.pct.D+S.cfg.pct.A;
 let yr='';if(S.v=='y'){const y=+a.slice(0,4);yr=`<div class=c><div class=hd style="background:var(--b)">Dashboard anual ${y}</div><table><tr><th>Mes</th><th class=r>Ingresos</th><th class=r>Egresos</th><th class=r>Ahorro</th><th class=r>Restante</th></tr>${MES.map((m,i)=>{const l=S.mov.filter(x=>x.fecha.slice(0,7)==y+'-'+String(i+1).padStart(2,'0')),ii=T(l.filter(x=>x.tipo=='Ingreso')),ee=T(l.filter(x=>x.tipo=='Egreso')),aa=T(l.filter(x=>x.categoria=='Ahorros'));return`<tr><td>${m}</td><td class=r>${$(ii)}</td><td class=r>${$(ee)}</td><td class=r>${$(aa)}</td><td class=r><b>${$(ii-ee)}</b></td></tr>`}).join('')}</table></div>`}
-const ml=[...M].sort((x,y)=>x.fecha<y.fecha?1:-1).map(x=>`<tr><td>${x.fecha}</td><td>${x.categoria}</td><td>${x.concepto}</td><td>${x.detalle||''}</td><td class=r>${x.tipo=='Ingreso'?'+':'−'}${$(x.monto)}</td><td><button onclick="del('${x.id}')">✕</button></td></tr>`).join('');
-const edit=CU.map(c=>`<h4>${c.n} <small>(${TT[c.t]})</small></h4>`+S.cfg.it[c.k].map((x,i)=>`<div class=ei><input value="${x.n}" onchange="ed('${c.k}',${i},'n',this.value)">${c.f?`<input type=number placeholder="Monto" value="${x.m}" onchange="ed('${c.k}',${i},'m',+this.value)"><select onchange="ed('${c.k}',${i},'fr',this.value)"><option value=m ${x.fr=='m'?'selected':''}>Mensual</option><option value=s ${x.fr=='s'?'selected':''}>Semanal</option></select>${x.fr=='m'?`<input type=number min=1 max=31 style="width:70px" value="${x.d}" onchange="ed('${c.k}',${i},'d',+this.value)" title="Día de vencimiento">`:''}<label><input type=checkbox ${x.on?'checked':''} onchange="ed('${c.k}',${i},'on',this.checked?1:0)">Activo</label>`:`<input type=number placeholder="Presupuesto semanal" value="${x.p}" onchange="ed('${c.k}',${i},'p',+this.value)">`}<button onclick="rm('${c.k}',${i})">Quitar</button></div>`).join('')+`<button onclick="addI('${c.k}')">+ Agregar</button>`).join('');
+const KC={Ingresos:'b'};CU.forEach(c=>KC[c.n]=c.k);
+const row=x=>`<tr><td>${x.fecha}</td><td>${x.concepto}</td><td>${x.detalle||''}</td><td class=r>${x.tipo=='Ingreso'?'+':'−'}${$(x.monto)}</td><td><button onclick="del('${x.id}')">✕</button></td></tr>`;
+const gr=[['Ingresos',ing],...CU.map(c=>[c.n,eg.filter(x=>x.categoria==c.n)])];const oth=eg.filter(x=>!KC[x.categoria]);if(oth.length)gr.push(['Otros',oth]);
+const ml=gr.filter(q=>q[1].length).map(([n,l])=>`<tr><td colspan=5 style="background:var(--${KC[n]||'b'});font-weight:700">${n} · ${l.length} mov. · ${$(T(l))}</td></tr>`+[...l].sort((x,y)=>x.fecha<y.fecha?1:-1).map(row).join('')).join('');
+const edit=CU.map(c=>`<h4>${c.n} <small>(${TT[c.t]})</small></h4>`+S.cfg.it[c.k].map((x,i)=>`<div class=ei><input value="${x.n}" onchange="ed('${c.k}',${i},'n',this.value)">${c.f?`<input type=number placeholder="Monto" value="${x.m}" onchange="ed('${c.k}',${i},'m',+this.value)"><select onchange="ed('${c.k}',${i},'fr',this.value)"><option value=m ${x.fr=='m'?'selected':''}>Mensual</option><option value=q ${x.fr=='q'?'selected':''}>Quincenal</option><option value=s ${x.fr=='s'?'selected':''}>Semanal</option></select>${x.fr!='s'?`<input type=number min=1 max=31 style="width:70px" value="${x.d}" onchange="ed('${c.k}',${i},'d',+this.value)" title="Día de vencimiento (quincenal: el 2.º pago es 15 días después)">`:''}<label><input type=checkbox ${x.on?'checked':''} onchange="ed('${c.k}',${i},'on',this.checked?1:0)">Activo</label>`:`<input type=number placeholder="Presupuesto semanal" value="${x.p}" onchange="ed('${c.k}',${i},'p',+this.value)">`}<button onclick="rm('${c.k}',${i})">Quitar</button></div>`).join('')+`<button onclick="addI('${c.k}')">+ Agregar</button>`).join('');
 g('main').innerHTML=`
 <div class=bar>${[['s','Semana'],['m','Mes'],['y','Año']].map(([k,n])=>`<button class="${S.v==k&&!S.r?'on':''}" onclick="S.v='${k}';S.r=null;render()">${n}</button>`).join('')}
 <button onclick="shift(-1)">◀</button><input type=date value="${a}" onchange="S.r=[this.value,'${b}'];render()"><input type=date value="${b}" onchange="S.r=['${a}',this.value];render()"><button onclick="shift(1)">▶</button>
@@ -140,33 +152,37 @@ g('main').innerHTML=`
 <div class=c><div class=cv><canvas id=c5></canvas></div></div></div>
 ${yr?`<div class=g style="grid-template-columns:1fr">${yr}</div>`:''}
 <div class=g>${CU.map(blk).join('')}</div>
-<div class=c style="margin-bottom:10px"><div class=hd style="background:var(--b)">Movimientos del periodo (${M.length})</div><table><tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Detalle</th><th class=r>Monto</th><th></th></tr>${ml||'<tr><td colspan=6>Sin movimientos. Toca “+ Movimiento” o importa tu Excel.</td></tr>'}</table></div>
+<div class=c style="margin-bottom:10px"><div class=hd style="background:var(--b)">Movimientos del periodo (${M.length})</div><table><tr><th>Fecha</th><th>Concepto</th><th>Detalle</th><th class=r>Monto</th><th></th></tr>${ml||'<tr><td colspan=5>Sin movimientos. Toca “+ Movimiento” o importa tu Excel.</td></tr>'}</table></div>
 <details class=c ${S.eo?'open':''} ontoggle="S.eo=this.open"><summary><b>Editar cuadros y ajustes</b></summary>
 <div class=ei style="margin-top:8px">Primer día de la semana: <select onchange="S.cfg.ini=+this.value;saveCfg()">${['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map((n,i)=>`<option value=${i} ${S.cfg.ini==i?'selected':''}>${n}</option>`).join('')}</select>
 Mes empieza el día: <input type=number min=1 max=28 style="width:70px" value="${S.cfg.dm}" onchange="S.cfg.dm=+this.value||1;saveCfg()"></div>
 <div class=ei>Conceptos de ingreso (separados por coma): <input style="max-width:420px;width:100%" value="${S.cfg.ing.join(', ')}" onchange="S.cfg.ing=this.value.split(',').map(s=>s.trim()).filter(Boolean);saveCfg()"></div>${edit}</details>`;
 CH.forEach(c=>c.destroy());CH=[];
-const mk=(id,cfg)=>CH.push(new Chart(g(id),cfg)),o=(t,x={})=>({responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:t},legend:{display:!!x.l,position:'bottom'}},...x.o});
-mk('c1',{type:'bar',data:{labels:['Ingreso','Egreso'],datasets:[{data:[I,E],backgroundColor:['#a8dba0','#f2b5b5']}]},options:o('Ingresos vs. Gastos')});
-mk('c2',{type:'doughnut',data:{labels:CU.map(c=>c.n),datasets:[{data:CU.map(c=>tc[c.n]||0),backgroundColor:CU.map(c=>COL[c.k])}]},options:o('Distribución de gastos',{l:1})});
+const mk=(id,cfg)=>CH.push(new Chart(g(id),cfg)),o=(t,x={})=>({responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:t},legend:{display:!!x.l,position:'bottom'},lb:x.lb||false},...x.o});
+mk('c1',{type:'bar',data:{labels:['Ingreso','Egreso'],datasets:[{data:[I,E],backgroundColor:['#a8dba0','#f2b5b5']}]},options:o('Ingresos vs. Gastos',{lb:{on:1}})});
+mk('c2',{type:'doughnut',data:{labels:CU.map(c=>c.n),datasets:[{data:CU.map(c=>tc[c.n]||0),backgroundColor:CU.map(c=>COL[c.k])}]},options:o('Distribución de gastos',{l:1,lb:{on:1}})});
 const pe=I?Math.round(E/I*100):0;
-mk('c3',{type:'doughnut',data:{datasets:[{data:[Math.min(pe,100),Math.max(0,100-pe)],backgroundColor:[pe>90?'#f2b5b5':pe>70?'#f7c99b':'#a8dba0','#eee']}]},options:o('% Egresos / Ingresos: '+pe+'%',{o:{rotation:-90,circumference:180,cutout:'65%'}})});
+mk('c3',{type:'doughnut',data:{datasets:[{data:[Math.min(pe,100),Math.max(0,100-pe)],backgroundColor:[pe>90?'#f2b5b5':pe>70?'#f7c99b':'#a8dba0','#eee']}]},options:o('% Egresos / Ingresos: '+pe+'%',{lb:{center:pe+'%'},o:{rotation:-90,circumference:180,cutout:'65%'}})});
 const k4=CU.find(c=>c.k==S.sc),i4=S.cfg.it[S.sc];
-mk('c4',{type:'bar',data:{labels:i4.map(x=>x.n),datasets:[{label:'Presupuesto',data:i4.map(x=>k4.f?occ(x,a,b)*x.m:x.p*W),backgroundColor:'#d8cdb8'},{label:'Actual',data:i4.map(x=>cc[k4.n+'|'+x.n]||0),backgroundColor:COL[S.sc]}]},options:o('Presupuesto utilizado por concepto',{l:1,o:{indexAxis:'y'}})});
-mk('c5',{type:'doughnut',data:{labels:['Necesidades','Deseos','Ahorro'],datasets:[{data:[tp.N,tp.D,tp.A],backgroundColor:['#a9d3de','#f7c99b','#a8dba0']}]},options:o('50/30/20 real',{l:1})})}
+mk('c4',{type:'bar',data:{labels:i4.map(x=>x.n),datasets:[{label:'Presupuesto',data:i4.map(x=>k4.f?occ(x,a,b)*x.m:x.p*W),backgroundColor:'#d8cdb8'},{label:'Actual',data:i4.map(x=>cc[k4.n+'|'+x.n]||0),backgroundColor:COL[S.sc]}]},options:o('Presupuesto utilizado por concepto',{l:1,lb:{on:1},o:{indexAxis:'y',layout:{padding:{right:56}}}})});
+mk('c5',{type:'doughnut',data:{labels:['Necesidades','Deseos','Ahorro'],datasets:[{data:[tp.N,tp.D,tp.A],backgroundColor:['#a9d3de','#f7c99b','#a8dba0']}]},options:o('50/30/20 real',{l:1,lb:{on:1}})})}
 
 /* ---------- Acciones ---------- */
 const setPct=(t,v)=>{S.cfg.pct[t]=+v||0;saveCfg()};
-const ed=(k,i,f,v)=>{S.cfg.it[k][i][f]=v;saveCfg()};
+const ed=(k,i,f,v)=>{S.cfg.it[k][i][f]=v;saveCfg();if(f=='fr')render()};
 const rm=(k,i)=>{if(confirm('¿Quitar "'+S.cfg.it[k][i].n+'"? El historial se mantiene.')){S.cfg.it[k].splice(i,1);saveCfg()}};
 const addI=k=>{const c=CU.find(x=>x.k==k);S.cfg.it[k].push(c.f?{n:'Nuevo',m:0,fr:'m',d:1,on:1}:{n:'Nuevo',p:0});saveCfg()};
 const del=id=>{if(confirm('¿Borrar este movimiento?'))col().doc(id).delete()};
 function pay(k,i){const c=CU.find(x=>x.k==k),x=S.cfg.it[k][i],[a,b]=rng(),m=prompt('Monto pagado de '+x.n,x.m);if(m===null||isNaN(+m))return;
 const t=iso(new Date());col().add(toDb(t>=a&&t<=b?t:a,'Egreso',c.n,x.n,'',x.m,+m))}
-function nuevo(){const[a,b]=rng(),t=iso(new Date());g('f').value=t>=a&&t<=b?t:a;g('ca').innerHTML='<option>Ingresos</option>'+CU.map(c=>`<option>${c.n}</option>`).join('');g('ca').value='Gastos variables';g('co').value=g('dt').value=g('mo').value='';dl();g('dg').showModal()}
-function dl(){const c=CU.find(x=>x.n==g('ca').value);g('cl').innerHTML=(c?S.cfg.it[c.k].map(x=>x.n):S.cfg.ing).map(n=>`<option value="${n}">`).join('')}
-function save(){const f=g('f').value,m=+g('mo').value,n=g('ca').value,c=CU.find(x=>x.n==n);if(!f||!m||!g('co').value)return alert('Completa fecha, concepto y monto.');
-const it=c&&S.cfg.it[c.k].find(x=>x.n==g('co').value);col().add(toDb(f,c?'Egreso':'Ingreso',n,g('co').value,g('dt').value,it?(it.p??it.m??0):0,m));g('dg').close()}
+function nuevo(){const[a,b]=rng(),t=iso(new Date());g('f').value=t>=a&&t<=b?t:a;g('ca').innerHTML='<option>Ingresos</option>'+CU.map(c=>`<option>${c.n}</option>`).join('');g('ca').value='Gastos variables';g('dt').value=g('mo').value='';dl();g('dg').showModal()}
+function dl(){const c=CU.find(x=>x.n==g('ca').value),l=c?S.cfg.it[c.k].map(x=>x.n):S.cfg.ing;g('cs').innerHTML=l.map(n=>`<option>${n}</option>`).join('')+'<option value="__n">＋ Otro concepto…</option>';cn()}
+function cn(){const n=g('cs').value=='__n';g('co').hidden=!n;if(n){g('co').value='';g('co').focus()}}
+function save(){const f=g('f').value,m=+g('mo').value,n=g('ca').value,c=CU.find(x=>x.n==n),nw=g('cs').value=='__n',co=(nw?g('co').value:g('cs').value).trim();
+if(!f||!m||!co)return alert('Completa fecha, concepto y monto.');
+const l=c?S.cfg.it[c.k]:null,it=l&&l.find(x=>x.n==co);
+if(nw){if(c&&!c.f&&!it){l.push({n:co,p:0});saveCfg()}if(!c&&!S.cfg.ing.includes(co)){S.cfg.ing.push(co);saveCfg()}}
+col().add(toDb(f,c?'Egreso':'Ingreso',n,co,g('dt').value,it?(it.p??it.m??0):0,m));g('dg').close()}
 
 /* ---------- Excel ---------- */
 function exp(){const D=[...S.mov].sort((x,y)=>x.fecha<y.fecha?-1:1).map(x=>{const d=pd(x.fecha);return{Fecha:x.fecha,Mes:MES[d.getMonth()],'Año':String(d.getFullYear()),Tipo:x.tipo,Categoria:x.o.c,Concepto:x.o.k,Detalle:x.o.d||'',Presupuesto:x.o.p||0,Monto:x.o.m}});
